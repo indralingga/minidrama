@@ -80,7 +80,7 @@ export default function WatchPage() {
   const provider = searchParams.get("provider") || "reelshort";
 
   // Core States
-  const [detail, setDetail] = useState<{ title?: string; synopsis?: string } | null>(null);
+  const [detail, setDetail] = useState<{ title?: string; synopsis?: string; poster?: string; cover?: string } | null>(null);
   const [episodes, setEpisodes] = useState<EpisodeItem[]>([]);
   const [currentEpisodeIdx, setCurrentEpisodeIdx] = useState(0);
   const [streamUrls, setStreamUrls] = useState<Record<number, string>>({});
@@ -93,6 +93,56 @@ export default function WatchPage() {
   const [bookmarked, setBookmarked] = useState(false);
   const [showNotification, setShowNotification] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
+
+  // Load initial bookmark status on client mount
+  useEffect(() => {
+    if (!dramaId) return;
+    const saved = localStorage.getItem("minidrama_bookmarks");
+    if (saved) {
+      try {
+        const list = JSON.parse(saved);
+        if (Array.isArray(list)) {
+          const exists = list.some((item: any) => item.id === dramaId);
+          setBookmarked(exists);
+        }
+      } catch (e) {
+        console.error("Failed to parse saved bookmarks:", e);
+      }
+    }
+  }, [dramaId]);
+
+  // Toggle bookmark and persist in localStorage
+  const toggleBookmark = () => {
+    const saved = localStorage.getItem("minidrama_bookmarks");
+    let list = [];
+    if (saved) {
+      try {
+        list = JSON.parse(saved);
+      } catch (e) {
+        list = [];
+      }
+    }
+
+    const exists = list.some((item: any) => item.id === dramaId);
+    if (exists) {
+      list = list.filter((item: any) => item.id !== dramaId);
+      setBookmarked(false);
+      notify("Dihapus dari Bookmark");
+    } else {
+      const dramaPoster = detail?.poster || detail?.cover || "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=600&fit=crop";
+      const newItem = {
+        id: dramaId,
+        title: detail?.title || "Untitled Drama",
+        poster: dramaPoster,
+        provider: provider,
+        addedAt: Date.now(),
+      };
+      list.push(newItem);
+      setBookmarked(true);
+      notify("Disimpan ke Bookmark!");
+    }
+    localStorage.setItem("minidrama_bookmarks", JSON.stringify(list));
+  };
 
   // Auto-hide controls states
   const [showControls, setShowControls] = useState(true);
@@ -662,10 +712,7 @@ export default function WatchPage() {
 
                 {/* Bookmark */}
                 <button
-                  onClick={() => {
-                    setBookmarked(!bookmarked);
-                    notify(bookmarked ? "Dihapus dari Bookmark" : "Disimpan ke Bookmark!");
-                  }}
+                  onClick={toggleBookmark}
                   className="flex flex-col items-center gap-1 group"
                 >
                   <div className="p-3 rounded-full bg-black/50 backdrop-blur-md border border-white/10 group-active:scale-90 transition-transform">
