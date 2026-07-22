@@ -10,7 +10,6 @@ export function BottomNav() {
 
   const navItems = [
     { label: "Home", href: "/", icon: Home },
-    { label: "Explore", href: "/explore", icon: Compass },
     { label: "Bookmark", href: "/bookmark", icon: Bookmark },
     { label: "Profile", href: "/profile", icon: User },
   ];
