@@ -318,7 +318,9 @@ export default function WatchPage() {
         hlsInstances.current[idx] = hls;
       }
     } else {
-      if (videoEl.src !== url) {
+      // Prevent resetting video src if it's already set to prevent restarting playback
+      const absoluteUrl = url.startsWith("http") ? url : new URL(url, window.location.href).href;
+      if (videoEl.src !== absoluteUrl) {
         videoEl.src = url;
       }
     }
@@ -376,13 +378,20 @@ export default function WatchPage() {
     };
   }, [episodes]);
 
-  // Toggle Play/Pause on Video Click
+  // Toggle Play/Pause on Video Click (Instant Resume support)
   const togglePlay = (idx: number) => {
     const video = videoRefs.current[idx];
     if (!video) return;
 
     if (video.paused) {
-      playVideo(idx);
+      if (video.src) {
+        // Instant play if source is already populated
+        video.play().then(() => {
+          setIsPlaying((prev) => ({ ...prev, [idx]: true }));
+        }).catch(() => {});
+      } else {
+        playVideo(idx);
+      }
     } else {
       video.pause();
       setIsPlaying((prev) => ({ ...prev, [idx]: false }));
@@ -608,16 +617,14 @@ export default function WatchPage() {
                 </button>
               </div>
 
-              {/* Bottom Video Metadata - Positioned safely above timeline at bottom-[108px] */}
-              <div className="absolute left-4 bottom-[108px] right-20 z-30 flex flex-col gap-1.5">
-                <h4 className="text-base md:text-lg font-black leading-tight drop-shadow line-clamp-1 text-zinc-100">
-                  {detail?.title || "Tuduhan Palsu Pengasuh"}
+              {/* Bottom Video Metadata - Positioned safely above timeline with integrated Episode Badge */}
+              <div className="absolute left-4 bottom-[124px] right-20 z-30 flex flex-col gap-1.5">
+                <h4 className="text-sm md:text-base font-black leading-tight drop-shadow text-zinc-100 flex items-center gap-2">
+                  <span className="text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-wider flex-shrink-0">
+                    EP {epItem.episode}
+                  </span>
+                  <span className="line-clamp-2">{detail?.title || "Tuduhan Palsu Pengasuh"}</span>
                 </h4>
-                <p className="text-xs text-zinc-300 font-medium flex items-center gap-2">
-                  <span className="font-bold text-rose-400">Episode {epItem.episode}</span>
-                  <span className="h-1 w-1 bg-zinc-500 rounded-full" />
-                  <span className="text-zinc-400">Full HD Stream</span>
-                </p>
               </div>
             </div>
           );
@@ -644,7 +651,7 @@ export default function WatchPage() {
             className="absolute left-0 top-0 bottom-0 bg-rose-500 rounded-full z-10"
             style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
           />
-          {/* Thumb circle (always visible for mobile control, slightly larger on hover) */}
+          {/* Thumb circle */}
           <div 
             className="absolute h-3 w-3 rounded-full bg-white border-2 border-rose-500 -top-1 shadow shadow-rose-500/50 z-10 transition-transform group-hover:scale-125"
             style={{ 
