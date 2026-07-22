@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Play, Sparkles, Film, Loader2, ArrowLeft, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -33,6 +33,114 @@ interface SearchResult {
   providerSlug: string;
 }
 
+// Reusable Side-Scrolling Row Component with Left/Right Navigation Arrows for Desktop
+function HorizontalScrollRow({
+  title,
+  dramas,
+  providerSlug,
+}: {
+  title: string;
+  dramas: DramaItem[];
+  providerSlug: string;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = (direction: "left" | "right") => {
+    if (rowRef.current) {
+      const { scrollLeft, clientWidth } = rowRef.current;
+      const scrollAmount = clientWidth * 0.75;
+      const targetScroll =
+        direction === "left" ? scrollLeft - scrollAmount : scrollLeft + scrollAmount;
+      rowRef.current.scrollTo({
+        left: targetScroll,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  return (
+    <div className="relative flex flex-col gap-4 overflow-hidden group/row animate-fade-in">
+      <div className="flex items-center justify-between pb-2 border-b border-zinc-900/60">
+        <h3 className="font-black tracking-tight text-base md:text-lg flex items-center gap-2 text-zinc-100">
+          <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+          {title}
+        </h3>
+      </div>
+
+      <div className="relative w-full">
+        {/* Left Arrow Button (Hidden on mobile, appears on hover on desktop) */}
+        <button
+          onClick={() => handleScroll("left")}
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-30 h-9 w-9 md:h-10 md:w-10 rounded-full bg-black/80 hover:bg-rose-600 text-white flex items-center justify-center shadow-lg border border-white/10 md:opacity-0 md:group-hover/row:opacity-100 transition-opacity duration-300 pointer-events-auto cursor-pointer"
+        >
+          <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
+        </button>
+
+        {/* Right Arrow Button (Hidden on mobile, appears on hover on desktop) */}
+        <button
+          onClick={() => handleScroll("right")}
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-30 h-9 w-9 md:h-10 md:w-10 rounded-full bg-black/80 hover:bg-rose-600 text-white flex items-center justify-center shadow-lg border border-white/10 md:opacity-0 md:group-hover/row:opacity-100 transition-opacity duration-300 pointer-events-auto cursor-pointer"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4 md:h-5 md:w-5"
+          >
+            <path d="M5 12h14" />
+            <path d="m12 5 7 7-7 7" />
+          </svg>
+        </button>
+
+        {/* Scrollable Container Row */}
+        <div
+          ref={rowRef}
+          className="flex overflow-x-auto scrollbar-none gap-3 md:gap-4 pb-4 -mx-4 px-4 md:mx-0 md:px-0 scroll-smooth"
+        >
+          {dramas.map((drama) => (
+            <Link
+              key={drama.id}
+              href={`/watch/${drama.id}?provider=${providerSlug}`}
+              className="w-[110px] sm:w-[130px] md:w-[145px] flex-none flex flex-col gap-2 group cursor-pointer"
+            >
+              <div className="relative aspect-[9/16] w-full rounded-2xl bg-zinc-900 border border-border shadow-md overflow-hidden group-hover:border-rose-500/50 transition-all duration-300">
+                <img
+                  src={drama.poster}
+                  alt={drama.title}
+                  className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=600&fit=crop";
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-85 group-hover:opacity-75 transition-opacity" />
+                <span className="absolute top-2 left-2 z-10 bg-black/80 backdrop-blur-md text-[9px] font-bold text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/10">
+                  ★ {drama.rating}
+                </span>
+                <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between text-[10px] font-bold text-zinc-300">
+                  <span>{drama.episodes} Ep</span>
+                  <span className="bg-rose-500/90 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:scale-110 shadow-lg shadow-rose-500/20">
+                    <Play className="h-2.5 w-2.5 fill-current" />
+                  </span>
+                </div>
+              </div>
+              <span className="text-xs font-bold line-clamp-2 px-1 text-zinc-300 group-hover:text-rose-400 transition-colors leading-tight">
+                {drama.title}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -47,8 +155,8 @@ export default function HomePage() {
   const [heroDramas, setHeroDramas] = useState<Array<{ drama: DramaItem; providerSlug: string }>>([]);
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   
-  // Selected Provider Tab State
-  const [selectedProviderSlug, setSelectedProviderSlug] = useState<string>("");
+  // Selected Provider Tab State (default to "ALL" to stack all providers)
+  const [selectedProviderSlug, setSelectedProviderSlug] = useState<string>("ALL");
 
   // Search States
   const [searchLoading, setSearchLoading] = useState(false);
@@ -82,11 +190,6 @@ export default function HomePage() {
         // Ensure sorted by sortOrder
         activeProviders.sort((a, b) => a.sortOrder - b.sortOrder);
         setProviders(activeProviders);
-        
-        // Default select first provider
-        if (activeProviders.length > 0) {
-          setSelectedProviderSlug(activeProviders[0].slug);
-        }
 
         // Fetch trending rank for each provider
         const dramaMap: Record<string, DramaItem[]> = {};
@@ -203,8 +306,6 @@ export default function HomePage() {
 
   const selectedProviderObject = providers.find((p) => p.slug === selectedProviderSlug);
   const selectedProviderDramas = dramasByProvider[selectedProviderSlug] || [];
-  // Slice to exactly 12 trending dramas
-  const displayedDramas = selectedProviderDramas.slice(0, 12);
 
   // If Search Parameter "q" is active, render search results directly in the main page feed
   if (queryParam) {
@@ -339,14 +440,37 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* 2. Interactive Clickable Provider Selector Tab Grid */}
+      {/* 2. Interactive Clickable Provider Selector Tab Grid (With 'Semua' option) */}
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h3 className="font-bold tracking-tight text-base md:text-lg flex items-center gap-2">
             <Film className="h-5 w-5 text-rose-500" /> Pilih Provider
           </h3>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 md:gap-4">
+          {/* 'Semua Provider' Card */}
+          <div
+            onClick={() => setSelectedProviderSlug("ALL")}
+            className={`flex items-center gap-3 p-3 md:p-4 rounded-2xl border cursor-pointer transition-all duration-200 scale-100 active:scale-95 group ${
+              selectedProviderSlug === "ALL"
+                ? "bg-rose-500/10 border-rose-500 shadow-lg shadow-rose-500/5 ring-1 ring-rose-500/30"
+                : "border-border bg-card hover:border-zinc-700/60"
+            }`}
+          >
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 flex items-center justify-center font-black text-xs text-white flex-shrink-0 shadow border border-rose-500/20">
+              ALL
+            </div>
+            <div className="flex flex-col overflow-hidden">
+              <span className={`text-xs md:text-sm font-bold truncate transition-colors ${
+                selectedProviderSlug === "ALL" ? "text-rose-400" : "group-hover:text-rose-400"
+              }`}>
+                Semua
+              </span>
+              <span className="text-[9px] text-zinc-500 font-bold tracking-wide uppercase">Provider</span>
+            </div>
+          </div>
+
+          {/* Individual Providers */}
           {loading
             ? Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="h-16 rounded-2xl border border-border bg-card animate-pulse" />
@@ -388,13 +512,31 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 3. Selected Provider's 12 Trending Dramas (Red Box - Side Scrolling Row) */}
-      {selectedProviderSlug && selectedProviderObject && (
-        <section className="flex flex-col gap-4 animate-fade-in overflow-hidden">
+      {/* 3. Stacked Feed for All Providers (If 'Semua' selected) */}
+      {selectedProviderSlug === "ALL" && (
+        <div className="flex flex-col gap-10">
+          {providers.map((p) => {
+            const dramas = dramasByProvider[p.slug] || [];
+            if (dramas.length === 0) return null;
+            return (
+              <HorizontalScrollRow
+                key={p.id}
+                title={`${p.name} Trending`}
+                dramas={dramas.slice(0, 12)} // Limit to top 12 trending
+                providerSlug={p.slug}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* 3. Selected Provider's Full Drama List in Responsive Grid (If single provider selected) */}
+      {selectedProviderSlug !== "ALL" && selectedProviderObject && (
+        <section className="flex flex-col gap-4 animate-fade-in">
           <div className="flex items-center justify-between pb-2 border-b border-zinc-900/60">
             <h3 className="font-black tracking-tight text-base md:text-lg flex items-center gap-2 text-zinc-100">
               <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
-              {selectedProviderObject.name} Trending
+              {selectedProviderObject.name} Semua Drama
             </h3>
           </div>
 
@@ -403,14 +545,13 @@ export default function HomePage() {
               <Loader2 className="h-6 w-6 animate-spin text-rose-500" />
               <span className="text-xs italic">Memuat konten dari {selectedProviderObject.name}...</span>
             </div>
-          ) : displayedDramas.length > 0 ? (
-            /* Horizontal scrolling container (Always in 1 row, overflows to the side) */
-            <div className="flex overflow-x-auto scrollbar-none gap-3 md:gap-4 pb-4 -mx-4 px-4 md:mx-0 md:px-0">
-              {displayedDramas.map((drama) => (
+          ) : selectedProviderDramas.length > 0 ? (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
+              {selectedProviderDramas.map((drama) => (
                 <Link
                   key={drama.id}
                   href={`/watch/${drama.id}?provider=${selectedProviderSlug}`}
-                  className="w-[110px] sm:w-[130px] md:w-[145px] flex-none flex flex-col gap-2 group cursor-pointer"
+                  className="flex flex-col gap-2 group cursor-pointer"
                 >
                   <div className="relative aspect-[9/16] w-full rounded-2xl bg-zinc-900 border border-border shadow-md overflow-hidden group-hover:border-rose-500/50 transition-all duration-300">
                     <img
@@ -422,17 +563,17 @@ export default function HomePage() {
                       }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-85 group-hover:opacity-75 transition-opacity" />
-                    <span className="absolute top-2 left-2 z-10 bg-black/80 backdrop-blur-md text-[9px] font-bold text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/10">
+                    <span className="absolute top-2 left-2 z-10 bg-black/80 backdrop-blur-md text-[10px] font-bold text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/10">
                       ★ {drama.rating}
                     </span>
-                    <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between text-[10px] font-bold text-zinc-300">
+                    <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between text-[11px] font-bold text-zinc-300">
                       <span>{drama.episodes} Ep</span>
-                      <span className="bg-rose-500/90 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:scale-110 shadow-lg shadow-rose-500/20">
-                        <Play className="h-2.5 w-2.5 fill-current" />
+                      <span className="bg-rose-500/90 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:scale-110 shadow-lg shadow-rose-500/20">
+                        <Play className="h-3 w-3 fill-current" />
                       </span>
                     </div>
                   </div>
-                  <span className="text-xs font-bold line-clamp-2 px-1 text-zinc-300 group-hover:text-rose-400 transition-colors leading-tight">
+                  <span className="text-xs md:text-sm font-bold line-clamp-2 px-1 text-zinc-300 group-hover:text-rose-400 transition-colors leading-tight">
                     {drama.title}
                   </span>
                 </Link>
