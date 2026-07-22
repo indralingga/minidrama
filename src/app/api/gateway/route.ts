@@ -17,6 +17,9 @@ export async function GET(request: Request) {
   if (lang) targetUrl += `&lang=${encodeURIComponent(lang)}`;
 
   try {
+    // Ignore SSL certificate verification issues for API targets
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
     const response = await fetch(targetUrl, {
       headers: {
         'x-api-key': CUTAD_API_KEY,
