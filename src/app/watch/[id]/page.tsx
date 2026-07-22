@@ -9,8 +9,6 @@ import {
   Share2,
   AlertTriangle,
   Play,
-  Volume2,
-  VolumeX,
   Loader2,
   ArrowLeft,
   Sparkles,
@@ -23,6 +21,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import { cn } from "@/lib/utils";
 
 interface EpisodeItem {
   episode: number;
@@ -87,13 +86,16 @@ export default function WatchPage() {
   const [streamUrls, setStreamUrls] = useState<Record<number, string>>({});
   const [parsedCues, setParsedCues] = useState<Record<number, SubtitleCue[]>>({});
   const [activeSubtitleText, setActiveSubtitleText] = useState<string>("");
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false); // Default unmuted with sound
   const [isPlaying, setIsPlaying] = useState<Record<number, boolean>>({});
   const [isBuffering, setIsBuffering] = useState<Record<number, boolean>>({});
   const [liked, setLiked] = useState<Record<number, boolean>>({});
   const [bookmarked, setBookmarked] = useState(false);
   const [showNotification, setShowNotification] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
+
+  // Auto-hide controls states
+  const [showControls, setShowControls] = useState(true);
 
   // Time & Progress states for seek bar
   const [currentTime, setCurrentTime] = useState(0);
@@ -103,6 +105,7 @@ export default function WatchPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<Record<number, HTMLVideoElement | null>>({});
   const hlsInstances = useRef<Record<number, Hls | null>>({});
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Guard references to prevent async race conditions during scrolling
   const isProgrammaticScrolling = useRef(false);
@@ -143,6 +146,31 @@ export default function WatchPage() {
       }
     });
   };
+
+  // Reset controls visibility timer
+  const resetControlsTimer = () => {
+    setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+
+    const activeVideo = videoRefs.current[currentEpisodeIdxRef.current];
+    const isPlayingCurrent = activeVideo ? !activeVideo.paused : false;
+
+    if (isPlayingCurrent) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+      }, 3500); // Hide after 3.5 seconds
+    }
+  };
+
+  // Trigger controls timer reset when play/pause state changes
+  useEffect(() => {
+    resetControlsTimer();
+    return () => {
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    };
+  }, [isPlaying, currentEpisodeIdx]);
 
   // 1. Fetch Drama Details & Episode List
   useEffect(() => {
@@ -228,14 +256,12 @@ export default function WatchPage() {
         }
 
         if (json?.status && streamUrl) {
-          // Extract specific referer/origin headers returned by CutAd to bypass CDN HTTP 403 blocks
           const headers = json.data.headers || json.data.streams?.[0]?.headers || {};
           const referer = headers.Referer || headers.referer || "";
           const origin = headers.Origin || headers.origin || "";
 
           let finalStreamUrl = streamUrl;
           if (referer || origin) {
-            // Route through our local serverless video proxy to safely inject headers
             finalStreamUrl = `/api/video-proxy?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(referer)}&origin=${encodeURIComponent(origin)}`;
           }
 
@@ -253,6 +279,24 @@ export default function WatchPage() {
     setStreamUrls((prev) => ({ ...prev, [idx]: fallbackUrl }));
     return fallbackUrl;
   };
+
+  // 3. Pre-fetch streams for adjacent episodes to ensure synchronous dynamic source loading (Fixes Autoplay on manual scroll)
+  useEffect(() => {
+    if (episodes.length === 0) return;
+
+    const indicesToFetch = [
+      currentEpisodeIdx,
+      currentEpisodeIdx + 1,
+      currentEpisodeIdx - 1
+    ].filter(idx => idx >= 0 && idx < episodes.length);
+
+    indicesToFetch.forEach(idx => {
+      const ep = episodes[idx];
+      if (ep && !streamUrls[idx]) {
+        fetchStreamData(idx, ep.videoFakeId);
+      }
+    });
+  }, [currentEpisodeIdx, episodes, streamUrls]);
 
   // Synchronize Active Subtitle Text and Current Time state on Video Time Update
   const handleTimeUpdate = (idx: number, videoEl: HTMLVideoElement) => {
@@ -288,6 +332,7 @@ export default function WatchPage() {
     if (activeVideo) {
       activeVideo.currentTime = newTime;
     }
+    resetControlsTimer();
   };
 
   // Play Video with HLS support & pause all others
@@ -318,7 +363,6 @@ export default function WatchPage() {
         hlsInstances.current[idx] = hls;
       }
     } else {
-      // Prevent resetting video src if it's already set to prevent restarting playback
       const absoluteUrl = url.startsWith("http") ? url : new URL(url, window.location.href).href;
       if (videoEl.src !== absoluteUrl) {
         videoEl.src = url;
@@ -329,6 +373,7 @@ export default function WatchPage() {
       setIsPlaying((prev) => ({ ...prev, [idx]: true }));
       setIsBuffering((prev) => ({ ...prev, [idx]: false }));
     }).catch(() => {
+      // Autoplay blocked by browser policy (sound needs gesture). Show play overlay button.
       setIsPlaying((prev) => ({ ...prev, [idx]: false }));
       setIsBuffering((prev) => ({ ...prev, [idx]: false }));
     });
@@ -378,14 +423,26 @@ export default function WatchPage() {
     };
   }, [episodes]);
 
-  // Toggle Play/Pause on Video Click (Instant Resume support)
+  // Toggle Play/Pause on Video Click (Instant Resume support with Controls protection)
   const togglePlay = (idx: number) => {
     const video = videoRefs.current[idx];
     if (!video) return;
 
+    // 1. If controls are hidden, show them first instead of pausing playback (Netflix UX style)
+    if (!showControls) {
+      setShowControls(true);
+      resetControlsTimer();
+      return;
+    }
+
+    // 2. Playback state toggle
     if (video.paused) {
+      // Prevent frozen player: if video is at/near the end, rewind to beginning
+      if (video.currentTime >= (video.duration || 0) - 0.25) {
+        video.currentTime = 0;
+      }
+
       if (video.src) {
-        // Instant play if source is already populated
         video.play().then(() => {
           setIsPlaying((prev) => ({ ...prev, [idx]: true }));
         }).catch(() => {});
@@ -396,16 +453,7 @@ export default function WatchPage() {
       video.pause();
       setIsPlaying((prev) => ({ ...prev, [idx]: false }));
     }
-  };
-
-  // Toggle Mute
-  const toggleMute = () => {
-    const nextMuted = !isMuted;
-    setIsMuted(nextMuted);
-    Object.values(videoRefs.current).forEach((video) => {
-      if (video) video.muted = nextMuted;
-    });
-    notify(nextMuted ? "Suara dimatikan" : "Suara diaktifkan");
+    resetControlsTimer();
   };
 
   // Select Episode from Drawer
@@ -430,7 +478,18 @@ export default function WatchPage() {
     notify(`Memutar Episode ${index + 1}`);
   };
 
-  // Handle Share Action using native Web Share API
+  // Auto-advance to next episode when video ends naturally (Fixes looping Bug 1)
+  const handleVideoEnded = (idx: number) => {
+    const nextIdx = idx + 1;
+    if (nextIdx < episodes.length) {
+      selectEpisode(nextIdx);
+      notify(`Memutar otomatis Episode ${nextIdx + 1}`);
+    } else {
+      notify("Anda telah selesai menonton semua episode!");
+    }
+  };
+
+  // Handle Share Action
   const handleShare = (episode: number) => {
     const shareTitle = detail?.title || "Nonton MiniDrama";
     const shareText = `Yuk nonton drama "${detail?.title || "MiniDrama"}" - Episode ${episode} gratis Subtitle Indonesia di MiniDrama!`;
@@ -441,31 +500,17 @@ export default function WatchPage() {
         title: shareTitle,
         text: shareText,
         url: shareUrl,
-      }).catch(() => {
-        // Share cancelled
-      });
+      }).catch(() => {});
     } else {
-      // Fallback: Copy link to clipboard
       navigator.clipboard.writeText(shareUrl);
       notify("Tautan disalin ke clipboard!");
     }
   };
 
-  // Handle Report Button redirects to Telegram Chat
+  // Handle Report Link
   const handleReport = (episode: number) => {
-    // Telegram Username - Silakan ganti 'minidrama_support' dengan username Telegram Anda asli
     const telegramUsername = "minidrama_support"; 
     const telegramUrl = `https://t.me/${telegramUsername}`;
-
-    // Opsional: Template pesan laporan otomatis jika sewaktu-waktu ingin dialihkan ke WhatsApp Business
-    // const whatsappNumber = "628xxxxxxxxxx"; // Nomor WA tujuan (awali angka 62 untuk kode negara)
-    // const message = `Halo Admin MiniDrama, saya ingin melaporkan kendala:\n` +
-    //   `- Drama: ${detail?.title || "Tuduhan Palsu"}\n` +
-    //   `- Episode: ${episode}\n` +
-    //   `- Kendala: (Video macet / Subtitle tidak pas)\n\n` +
-    //   `- Tautan: ${window.location.href}`;
-    // const whatsappUrl = `https://api.whatsapp.com/send?phone=${whatsappNumber}&text=${encodeURIComponent(message)}`;
-
     window.open(telegramUrl, "_blank");
   };
 
@@ -479,7 +524,9 @@ export default function WatchPage() {
   }
 
   return (
-    <div className="relative h-screen w-full bg-black text-white overflow-hidden max-w-lg mx-auto shadow-2xl">
+    /* h-[100dvh] solves the mobile browser cut-off issue (Fixes Bug 6) */
+    <div className="relative h-[100dvh] w-full bg-black text-white overflow-hidden max-w-lg mx-auto shadow-2xl">
+      
       {/* Toast Notification Banner */}
       {showNotification && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-rose-500/90 text-white font-bold text-xs px-4 py-2 rounded-full shadow-lg backdrop-blur animate-fade-in flex items-center gap-1.5 border border-rose-400/40">
@@ -488,26 +535,19 @@ export default function WatchPage() {
         </div>
       )}
 
-      {/* Top Header Buttons */}
-      <div className="absolute top-4 left-4 right-4 z-50 flex items-center justify-between pointer-events-none">
+      {/* Top Header Buttons (Hides on auto-hide) */}
+      <div 
+        className={cn(
+          "absolute top-4 left-4 right-4 z-50 flex items-center justify-between pointer-events-none transition-all duration-300 transform",
+          showControls ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4 pointer-events-none"
+        )}
+      >
         <button
           onClick={() => router.back()}
           className="pointer-events-auto p-2.5 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/80 transition-colors border border-white/10"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-
-        <div className="pointer-events-auto flex items-center gap-2">
-          <span className="bg-rose-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shadow-md">
-            100% GRATIS
-          </span>
-          <button
-            onClick={toggleMute}
-            className="pointer-events-auto p-2.5 rounded-full bg-black/50 backdrop-blur-md text-white hover:bg-black/80 transition-colors border border-white/10"
-          >
-            {isMuted ? <VolumeX className="h-5 w-5 text-rose-400" /> : <Volume2 className="h-5 w-5" />}
-          </button>
-        </div>
       </div>
 
       {/* Full-screen Vertical Scroll Container */}
@@ -532,7 +572,6 @@ export default function WatchPage() {
                   videoRefs.current[idx] = el;
                 }}
                 data-index={idx}
-                loop
                 muted={isMuted}
                 playsInline
                 preload="metadata"
@@ -555,6 +594,7 @@ export default function WatchPage() {
                   }
                 }}
                 onPause={() => setIsPlaying((prev) => ({ ...prev, [idx]: false }))}
+                onEnded={() => handleVideoEnded(idx)}
                 onError={() => {
                   setIsBuffering((prev) => ({ ...prev, [idx]: false }));
                   setIsPlaying((prev) => ({ ...prev, [idx]: false }));
@@ -564,7 +604,7 @@ export default function WatchPage() {
 
               {/* Loading Spinner */}
               {isEpBuffering && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none z-20">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm pointer-events-none z-25">
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="h-10 w-10 text-rose-500 animate-spin" />
                     <span className="text-xs font-semibold text-zinc-300">Memuat Stream...</span>
@@ -572,8 +612,8 @@ export default function WatchPage() {
                 </div>
               )}
 
-              {/* Center Play Overlay Icon when Paused */}
-              {!isEpPlaying && !isEpBuffering && isCurrent && (
+              {/* Center Play Overlay Icon when Paused (Protected by showControls) */}
+              {!isEpPlaying && !isEpBuffering && isCurrent && showControls && (
                 <div
                   onClick={() => togglePlay(idx)}
                   className="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer z-20"
@@ -584,16 +624,21 @@ export default function WatchPage() {
                 </div>
               )}
 
-              {/* Subtitle Overlay - Positioned safely at bottom-180 */}
+              {/* Subtitle Overlay - Smoothly animates downwards when controls hide (Fixes Bug 5) */}
               {isCurrent && activeSubtitleText && (
-                <div className="absolute bottom-[180px] left-4 right-16 z-30 flex justify-center pointer-events-none">
+                <div 
+                  className={cn(
+                    "absolute left-4 right-16 z-30 flex justify-center pointer-events-none transition-all duration-300",
+                    showControls ? "bottom-[180px]" : "bottom-[90px]"
+                  )}
+                >
                   <div className="bg-black/90 backdrop-blur-md text-yellow-300 font-extrabold text-sm md:text-base px-4 py-2 rounded-2xl text-center shadow-2xl border border-yellow-500/40 max-w-xs leading-snug tracking-wide animate-fade-in">
                     {activeSubtitleText}
                   </div>
                 </div>
               )}
 
-              {/* Right Sidebar Actions */}
+              {/* Right Sidebar Actions (Always visible, doesn't block main space) */}
               <div className="absolute right-4 bottom-32 z-30 flex flex-col gap-6 items-center">
                 {/* Like */}
                 <button
@@ -656,13 +701,18 @@ export default function WatchPage() {
                 </button>
               </div>
 
-              {/* Bottom Video Metadata */}
-              <div className="absolute left-4 bottom-[124px] right-20 z-30 flex flex-col gap-1.5">
+              {/* Bottom Video Metadata - Slides down when controls hide (Fixes Bug 5) */}
+              <div 
+                className={cn(
+                  "absolute left-4 right-20 z-30 flex flex-col gap-1.5 transition-all duration-300",
+                  showControls ? "bottom-[124px]" : "bottom-[34px]"
+                )}
+              >
                 <h4 className="text-sm md:text-base font-black leading-tight drop-shadow text-zinc-100 flex items-center gap-2">
                   <span className="text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-wider flex-shrink-0">
                     EP {epItem.episode}
                   </span>
-                  <span className="line-clamp-2">{detail?.title || "Tuduhan Palsu Pengasuh"}</span>
+                  <span className="line-clamp-2">{detail?.title || "Memuat Judul..."}</span>
                 </h4>
               </div>
             </div>
@@ -670,8 +720,13 @@ export default function WatchPage() {
         })}
       </div>
 
-      {/* Interactive Progress Bar & Seek Bar - Positioned at bottom-[72px] */}
-      <div className="absolute bottom-[72px] left-4 right-4 z-40 flex flex-col gap-1.5 pointer-events-auto bg-black/40 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/5 shadow-xl">
+      {/* Interactive Progress Bar & Seek Bar - Positioned dynamically, fades out on play (Fixes Bug 5) */}
+      <div 
+        className={cn(
+          "absolute left-4 right-4 z-40 flex flex-col gap-1.5 pointer-events-auto bg-black/60 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/5 shadow-xl transition-all duration-300 transform",
+          showControls ? "bottom-[72px] opacity-100 scale-100" : "bottom-[20px] opacity-0 scale-95 pointer-events-none"
+        )}
+      >
         <div className="flex items-center justify-between text-[10px] text-zinc-400 font-black px-0.5">
           <span className="text-rose-400">{formatTime(currentTime)}</span>
           <span>{formatTime(duration)}</span>
@@ -701,8 +756,13 @@ export default function WatchPage() {
         </div>
       </div>
 
-      {/* Episode Selector Drawer Trigger - Positioned at bottom-4 */}
-      <div className="absolute bottom-4 left-0 right-0 z-40 flex justify-center pointer-events-none">
+      {/* Episode Selector Drawer Trigger - Fades out on play, positioned perfectly on dynamic viewports (Fixes Bug 5 & Bug 6) */}
+      <div 
+        className={cn(
+          "absolute left-0 right-0 z-40 flex justify-center pointer-events-none transition-all duration-300 transform",
+          showControls ? "bottom-4 opacity-100 scale-100" : "-bottom-12 opacity-0 scale-95 pointer-events-none"
+        )}
+      >
         <Drawer>
           <DrawerTrigger asChild>
             <Button
