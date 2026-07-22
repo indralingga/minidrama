@@ -430,6 +430,45 @@ export default function WatchPage() {
     notify(`Memutar Episode ${index + 1}`);
   };
 
+  // Handle Share Action using native Web Share API
+  const handleShare = (episode: number) => {
+    const shareTitle = detail?.title || "Nonton MiniDrama";
+    const shareText = `Yuk nonton drama "${detail?.title || "MiniDrama"}" - Episode ${episode} gratis Subtitle Indonesia di MiniDrama!`;
+    const shareUrl = window.location.href;
+
+    if (navigator.share) {
+      navigator.share({
+        title: shareTitle,
+        text: shareText,
+        url: shareUrl,
+      }).catch(() => {
+        // Share cancelled
+      });
+    } else {
+      // Fallback: Copy link to clipboard
+      navigator.clipboard.writeText(shareUrl);
+      notify("Tautan disalin ke clipboard!");
+    }
+  };
+
+  // Handle Report Button redirects to Telegram Chat
+  const handleReport = (episode: number) => {
+    // Telegram Username - Silakan ganti 'minidrama_support' dengan username Telegram Anda asli
+    const telegramUsername = "minidrama_support"; 
+    const telegramUrl = `https://t.me/${telegramUsername}`;
+
+    // Opsional: Template pesan laporan otomatis jika sewaktu-waktu ingin dialihkan ke WhatsApp Business
+    // const whatsappNumber = "628xxxxxxxxxx"; // Nomor WA tujuan (awali angka 62 untuk kode negara)
+    // const message = `Halo Admin MiniDrama, saya ingin melaporkan kendala:\n` +
+    //   `- Drama: ${detail?.title || "Tuduhan Palsu"}\n` +
+    //   `- Episode: ${episode}\n` +
+    //   `- Kendala: (Video macet / Subtitle tidak pas)\n\n` +
+    //   `- Tautan: ${window.location.href}`;
+    // const whatsappUrl = `https://api.whatsapp.com/send?phone=${whatsappNumber}&text=${encodeURIComponent(message)}`;
+
+    window.open(telegramUrl, "_blank");
+  };
+
   if (pageLoading) {
     return (
       <div className="h-screen w-full bg-black flex flex-col items-center justify-center text-white gap-3">
@@ -594,10 +633,10 @@ export default function WatchPage() {
                   <span className="text-[11px] font-bold drop-shadow">Simpan</span>
                 </button>
 
-                {/* Share */}
+                {/* Share (Bagikan) */}
                 <button
-                  onClick={() => notify("Tautan drama disalin ke clipboard!")}
-                  className="flex flex-col items-center gap-1 group"
+                  onClick={() => handleShare(epItem.episode)}
+                  className="flex flex-col items-center gap-1 group pointer-events-auto"
                 >
                   <div className="p-3 rounded-full bg-black/50 backdrop-blur-md border border-white/10 group-active:scale-90 transition-transform">
                     <Share2 className="h-6 w-6" />
@@ -605,10 +644,10 @@ export default function WatchPage() {
                   <span className="text-[11px] font-bold drop-shadow">Bagikan</span>
                 </button>
 
-                {/* Report */}
+                {/* Report (Lapor) */}
                 <button
-                  onClick={() => notify("Laporan Anda telah dikirimkan.")}
-                  className="flex flex-col items-center gap-1 group"
+                  onClick={() => handleReport(epItem.episode)}
+                  className="flex flex-col items-center gap-1 group pointer-events-auto"
                 >
                   <div className="p-3 rounded-full bg-black/50 backdrop-blur-md border border-white/10 group-active:scale-90 transition-transform">
                     <AlertTriangle className="h-5 w-5 text-zinc-400" />
@@ -617,7 +656,7 @@ export default function WatchPage() {
                 </button>
               </div>
 
-              {/* Bottom Video Metadata - Positioned safely above timeline with integrated Episode Badge */}
+              {/* Bottom Video Metadata */}
               <div className="absolute left-4 bottom-[124px] right-20 z-30 flex flex-col gap-1.5">
                 <h4 className="text-sm md:text-base font-black leading-tight drop-shadow text-zinc-100 flex items-center gap-2">
                   <span className="text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 rounded text-[10px] uppercase font-black tracking-wider flex-shrink-0">
