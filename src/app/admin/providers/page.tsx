@@ -15,6 +15,7 @@ import {
   Lock,
   User,
   ShieldAlert,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,6 +51,7 @@ export default function AdminProvidersPage() {
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
+  const [initLoading, setInitLoading] = useState(false);
 
   // Form states
   const [formName, setFormName] = useState("");
@@ -81,6 +83,60 @@ export default function AdminProvidersPage() {
       console.error("Gagal memuat provider:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Initialize Default Providers directly from UI (Foolproof fallback)
+  const initializeDefaults = async () => {
+    setInitLoading(true);
+    const defaults = [
+      {
+        name: "NetShort",
+        slug: "netshort",
+        category: "SHORT",
+        iconUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=128&h=128&fit=crop",
+        apiBaseUrl: "https://www.cutad.web.id/api/public/netshort",
+        sortOrder: 1,
+      },
+      {
+        name: "ReelShort",
+        slug: "reelshort",
+        category: "SHORT",
+        iconUrl: "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=128&h=128&fit=crop",
+        apiBaseUrl: "https://www.cutad.web.id/api/public/reelshort",
+        sortOrder: 2,
+      },
+      {
+        name: "DramaBox",
+        slug: "dramabox",
+        category: "DRAMA",
+        iconUrl: "https://images.unsplash.com/photo-1620121692029-d088224ddc74?w=128&h=128&fit=crop",
+        apiBaseUrl: "https://www.cutad.web.id/api/public/dramabox",
+        sortOrder: 3,
+      },
+      {
+        name: "ShortMax",
+        slug: "shortmax",
+        category: "SHORT",
+        iconUrl: "https://images.unsplash.com/photo-1618005198143-d3782b5752f6?w=128&h=128&fit=crop",
+        apiBaseUrl: "https://www.cutad.web.id/api/public/shortmax",
+        sortOrder: 4,
+      },
+    ];
+
+    try {
+      for (const item of defaults) {
+        await fetch("/api/providers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item),
+        });
+      }
+      await loadProviders();
+    } catch (e) {
+      console.error("Gagal melakukan inisialisasi awal database:", e);
+    } finally {
+      setInitLoading(false);
     }
   };
 
@@ -369,12 +425,30 @@ export default function AdminProvidersPage() {
         </Dialog>
       </div>
 
-      {/* Responsive Grid Layout for Provider list on Desktop (2 Columns) */}
+      {/* Responsive Grid Layout for Provider list */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {loading ? (
           <div className="col-span-full text-center text-zinc-500 text-sm py-10 animate-pulse">Memuat data...</div>
         ) : providers.length === 0 ? (
-          <div className="col-span-full text-center text-zinc-500 text-sm py-10">Belum ada provider terdaftar.</div>
+          <div className="col-span-full flex flex-col items-center justify-center py-16 gap-4 text-center bg-zinc-900/40 rounded-2xl p-6 border border-zinc-900">
+            <span className="text-zinc-400 text-sm">Belum ada provider terdaftar di database Supabase Anda.</span>
+            <Button
+              onClick={initializeDefaults}
+              disabled={initLoading}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl px-6 py-3 border-0 flex items-center gap-2"
+            >
+              {initLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Sedang Menginisialisasi...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 text-yellow-300 fill-current animate-pulse" />
+                  Inisialisasi 4 Provider Default
+                </>
+              )}
+            </Button>
+          </div>
         ) : (
           providers.map(provider => (
             <Card key={provider.id} className="bg-zinc-900/60 backdrop-blur border-zinc-800 text-white hover:border-zinc-700 transition-colors rounded-2xl overflow-hidden shadow-xl">
