@@ -573,13 +573,13 @@ export default function WatchPage() {
       {/* Episode Selector Drawer Trigger */}
       <div className="absolute bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-black via-black/80 to-transparent pt-8 pb-4 px-4 flex justify-center">
         <Drawer>
-          <DrawerTrigger asChild>
+          <DrawerTrigger render={
             <Button
               variant="ghost"
               className="text-xs font-bold gap-1.5 text-white bg-rose-500/90 hover:bg-rose-600 backdrop-blur px-5 py-2 rounded-full border border-rose-400/40 shadow-xl shadow-rose-500/20"
-            >
-              Pilih Episode ({episodes.length} Gratis)
-            </Button>
+            />
+          }>
+            Pilih Episode ({episodes.length} Gratis)
           </DrawerTrigger>
           <DrawerContent className="bg-zinc-950 border-zinc-900 text-white max-w-lg mx-auto">
             <DrawerHeader>
