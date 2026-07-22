@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Play, Sparkles, Film } from "lucide-react";
+import { Play, Sparkles, Film, Loader2, ArrowLeft, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 
 interface Provider {
   id: string;
@@ -25,12 +26,29 @@ interface DramaItem {
   rating?: string;
 }
 
+interface SearchResult {
+  id: string;
+  title: string;
+  poster?: string;
+  providerSlug: string;
+}
+
 export default function HomePage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const queryParam = searchParams.get("q") || "";
+
+  // Core Home States
   const [activeCategory, setActiveCategory] = useState<string>("ALL");
   const [providers, setProviders] = useState<Provider[]>([]);
   const [dramasByProvider, setDramasByProvider] = useState<Record<string, DramaItem[]>>({});
   const [loading, setLoading] = useState(true);
   const [heroDrama, setHeroDrama] = useState<{ drama: DramaItem; provider: string } | null>(null);
+
+  // Search States
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [groupedResults, setGroupedResults] = useState<Record<string, SearchResult[]>>({});
+  const [searched, setSearched] = useState(false);
 
   const categories = [
     { label: "Semua", value: "ALL" },
@@ -39,9 +57,9 @@ export default function HomePage() {
     { label: "Anime", value: "ANIME" },
   ];
 
-  // Fetch providers from DB
+  // Fetch providers list
   useEffect(() => {
-    async function fetchProvidersAndRank() {
+    async function loadInitialData() {
       try {
         const res = await fetch("/api/providers?active=true");
         let activeProviders: Provider[] = [];
@@ -65,7 +83,7 @@ export default function HomePage() {
 
         setProviders(activeProviders);
 
-        // Fetch rank for each provider
+        // Fetch trending rank for each provider
         const dramaMap: Record<string, DramaItem[]> = {};
         for (const p of activeProviders) {
           try {
@@ -102,13 +120,156 @@ export default function HomePage() {
       }
     }
 
-    fetchProvidersAndRank();
+    loadInitialData();
   }, []);
+
+  // Monitor URL search parameter "q" and execute parallel searches
+  useEffect(() => {
+    if (!queryParam.trim()) {
+      setGroupedResults({});
+      setSearched(false);
+      return;
+    }
+
+    async function executeGlobalSearch() {
+      setSearchLoading(true);
+      setSearched(true);
+      const newGroupedResults: Record<string, SearchResult[]> = {};
+
+      // Determine search targets
+      const searchTargets = providers.length > 0 ? providers : [
+        { id: "1", name: "ReelShort", slug: "reelshort", isActive: true },
+        { id: "2", name: "NetShort", slug: "netshort", isActive: true },
+        { id: "3", name: "DramaBox", slug: "dramabox", isActive: true },
+        { id: "4", name: "ShortMax", slug: "shortmax", isActive: true },
+      ];
+
+      try {
+        await Promise.all(
+          searchTargets.map(async (p) => {
+            try {
+              const res = await fetch(
+                `/api/gateway?provider=${p.slug}&action=search&q=${encodeURIComponent(queryParam)}`
+              );
+              if (res.ok) {
+                const json = await res.json();
+                if (json?.status && Array.isArray(json?.data) && json.data.length > 0) {
+                  newGroupedResults[p.name] = json.data.map((item: any) => ({
+                    id: item.id || item.dramaId,
+                    title: item.title || item.name || "Untitled Drama",
+                    poster: item.poster || item.cover || item.image || "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=600&fit=crop",
+                    providerSlug: p.slug,
+                  }));
+                }
+              }
+            } catch (err) {
+              console.error(`Gagal mencari di provider ${p.name}:`, err);
+            }
+          })
+        );
+        setGroupedResults(newGroupedResults);
+      } catch (err) {
+        console.error("Gagal melakukan pencarian multi-provider:", err);
+      } finally {
+        setSearchLoading(false);
+      }
+    }
+
+    executeGlobalSearch();
+  }, [queryParam, providers]);
 
   const filteredProviders = providers.filter(
     (p) => activeCategory === "ALL" || p.category === activeCategory
   );
 
+  const totalSearchMatches = Object.values(groupedResults).reduce(
+    (acc, curr) => acc + curr.length,
+    0
+  );
+
+  // If Search Parameter "q" is active, render search results directly in the main page feed
+  if (queryParam) {
+    return (
+      <div className="flex flex-col gap-6 animate-fade-in pb-16">
+        {/* Search Results Title with Back button */}
+        <div className="flex items-center justify-between pb-4 border-b border-zinc-900">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push("/")}
+              className="p-2.5 rounded-full hover:bg-zinc-900 text-zinc-400 hover:text-white transition-colors border border-zinc-800"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div>
+              <h2 className="text-xl md:text-2xl font-black tracking-tight flex items-center gap-2">
+                Hasil Pencarian: <span className="text-rose-500">"{queryParam}"</span>
+              </h2>
+              <p className="text-xs text-zinc-500">Menemukan {totalSearchMatches} drama di seluruh provider aktif</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Search Content */}
+        {searchLoading ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <Loader2 className="h-12 w-12 text-rose-500 animate-spin" />
+            <span className="text-sm font-semibold text-zinc-400">Mencari secara serentak di semua provider...</span>
+          </div>
+        ) : totalSearchMatches > 0 ? (
+          <div className="flex flex-col gap-8">
+            {Object.entries(groupedResults).map(([providerName, list]) => (
+              <section key={providerName} className="flex flex-col gap-4 border-b border-zinc-900/60 pb-6 last:border-0 last:pb-0">
+                <h4 className="text-xs md:text-sm font-black tracking-widest text-rose-400 uppercase flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                  {providerName} ({list.length} Cocok)
+                </h4>
+                {/* 3 columns on mobile, 4 columns on tablets, 6 columns on desktop */}
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
+                  {list.map((drama) => (
+                    <Link
+                      key={drama.id}
+                      href={`/watch/${drama.id}?provider=${drama.providerSlug}`}
+                      className="flex flex-col gap-2 group cursor-pointer"
+                    >
+                      <div className="relative aspect-[9/16] w-full rounded-2xl bg-zinc-900 border border-border shadow-md overflow-hidden group-hover:border-rose-500/50 transition-all duration-300">
+                        <img
+                          src={drama.poster}
+                          alt={drama.title}
+                          className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src =
+                              "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=600&fit=crop";
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <span className="p-3 rounded-full bg-rose-500 text-white shadow-lg">
+                            <Play className="h-4 w-4 fill-current ml-0.5" />
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] md:text-xs font-black line-clamp-2 leading-tight text-zinc-200 group-hover:text-rose-400 transition-colors">
+                        {drama.title}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : searched ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center gap-2">
+            <Search className="h-8 w-8 text-zinc-600" />
+            <span className="text-sm font-semibold text-zinc-500">Tidak ada drama yang cocok dengan kata kunci tersebut.</span>
+            <button onClick={() => router.push("/")} className="text-xs text-rose-500 hover:underline font-bold mt-2">
+              Kembali ke Beranda
+            </button>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  // Render Default Main Home Feed
   return (
     <div className="flex flex-col gap-8">
       {/* Category Pills Header */}
