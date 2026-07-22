@@ -56,12 +56,22 @@ export function Header() {
             const data = await res.json();
             if (data && data.length > 0) {
               setProviders(data);
+              return;
             }
           }
         } catch (e) {
           console.error("Gagal memuat provider:", e);
         }
+
+        // Robust fallback providers list if database is loading or empty
+        setProviders([
+          { id: "1", name: "ReelShort", slug: "reelshort", isActive: true },
+          { id: "2", name: "NetShort", slug: "netshort", isActive: true },
+          { id: "3", name: "DramaBox", slug: "dramabox", isActive: true },
+          { id: "4", name: "ShortMax", slug: "shortmax", isActive: true },
+        ]);
       }
+      
       fetchProviders();
       // Reset search states
       setQuery("");
@@ -73,7 +83,15 @@ export function Header() {
   // Handle Search Submission across ALL active providers in parallel
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!query.trim() || providers.length === 0) return;
+    if (!query.trim()) return;
+
+    // Use current state providers or fallback to default
+    const searchTargets = providers.length > 0 ? providers : [
+      { id: "1", name: "ReelShort", slug: "reelshort", isActive: true },
+      { id: "2", name: "NetShort", slug: "netshort", isActive: true },
+      { id: "3", name: "DramaBox", slug: "dramabox", isActive: true },
+      { id: "4", name: "ShortMax", slug: "shortmax", isActive: true },
+    ];
 
     setLoading(true);
     setSearched(true);
@@ -81,7 +99,7 @@ export function Header() {
 
     try {
       await Promise.all(
-        providers.map(async (p) => {
+        searchTargets.map(async (p) => {
           try {
             const res = await fetch(
               `/api/gateway?provider=${p.slug}&action=search&q=${encodeURIComponent(query)}`
@@ -171,12 +189,12 @@ export function Header() {
             }>
               <Search className="h-5 w-5" />
             </DialogTrigger>
-            <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-2xl rounded-2xl p-6">
+            <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-2xl w-[92vw] md:w-full rounded-3xl p-4 md:p-6 shadow-2xl">
               <DialogHeader>
-                <DialogTitle className="text-left font-bold text-lg">Pencarian Multi-Provider</DialogTitle>
+                <DialogTitle className="text-left font-extrabold text-base md:text-lg">Pencarian Multi-Provider</DialogTitle>
               </DialogHeader>
 
-              {/* Search Form (Dropdown removed for direct global query) */}
+              {/* Search Form */}
               <form onSubmit={handleSearch} className="flex flex-col gap-4 mt-2">
                 <div className="flex gap-2">
                   <input
@@ -184,13 +202,13 @@ export function Header() {
                     required
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Masukkan judul drama untuk dicari di semua provider..."
-                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-rose-500 text-white"
+                    placeholder="Cari judul drama di semua provider..."
+                    className="flex-1 bg-zinc-800 border border-zinc-700/60 rounded-2xl px-4 py-2.5 text-xs md:text-sm focus:outline-none focus:border-rose-500 text-white"
                   />
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-6 py-3 rounded-xl border-0 flex items-center justify-center gap-2"
+                    className="bg-rose-500 hover:bg-rose-600 text-white font-bold px-5 py-2.5 rounded-2xl border-0 flex items-center justify-center gap-2 text-xs md:text-sm"
                   >
                     {loading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -204,27 +222,28 @@ export function Header() {
               </form>
 
               {/* Grouped Search Results List */}
-              <div className="mt-6 max-h-[55vh] overflow-y-auto scrollbar-none pr-1 flex flex-col gap-6">
+              <div className="mt-5 max-h-[50vh] overflow-y-auto scrollbar-none pr-1 flex flex-col gap-5">
                 {loading ? (
                   <div className="flex flex-col items-center justify-center py-16 gap-3">
-                    <Loader2 className="h-10 w-10 text-rose-500 animate-spin" />
-                    <span className="text-sm text-zinc-400">Mencari di semua provider aktif secara bersamaan...</span>
+                    <Loader2 className="h-9 w-9 text-rose-500 animate-spin" />
+                    <span className="text-xs text-zinc-400 text-center px-4">Mencari di semua provider secara bersamaan...</span>
                   </div>
                 ) : totalMatches > 0 ? (
                   Object.entries(groupedResults).map(([providerName, list]) => (
-                    <div key={providerName} className="flex flex-col gap-3 border-b border-zinc-800/60 pb-5 last:border-0 last:pb-0">
-                      <h4 className="text-xs font-black tracking-widest text-rose-400 uppercase flex items-center gap-2">
+                    <div key={providerName} className="flex flex-col gap-2.5 border-b border-zinc-800/40 pb-4 last:border-0 last:pb-0">
+                      <h4 className="text-[10px] md:text-xs font-black tracking-widest text-rose-400 uppercase flex items-center gap-2">
                         <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
                         {providerName} ({list.length} Cocok)
                       </h4>
-                      <div className="grid grid-cols-4 gap-3">
+                      {/* Responsive columns: 3 cols on mobile, 4 cols on desktop */}
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 md:gap-3">
                         {list.map((drama) => (
                           <div
                             key={drama.id}
                             onClick={() => navigateToDrama(drama.id, drama.providerSlug)}
                             className="flex flex-col gap-1.5 cursor-pointer group"
                           >
-                            <div className="relative aspect-[9/16] rounded-xl bg-zinc-800 border border-zinc-700 overflow-hidden group-hover:border-rose-500 transition-colors">
+                            <div className="relative aspect-[9/16] rounded-xl bg-zinc-800 border border-zinc-700/60 overflow-hidden group-hover:border-rose-500 transition-colors">
                               <img
                                 src={drama.poster}
                                 alt={drama.title}
@@ -236,11 +255,11 @@ export function Header() {
                               />
                               <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <span className="p-2.5 rounded-full bg-rose-500 text-white shadow-lg">
-                                  <Play className="h-4 w-4 fill-current ml-0.5" />
+                                  <Play className="h-3.5 w-3.5 fill-current ml-0.5" />
                                 </span>
                               </div>
                             </div>
-                            <span className="text-[10px] md:text-[11px] font-extrabold line-clamp-2 leading-tight text-zinc-200 group-hover:text-rose-400 transition-colors">
+                            <span className="text-[9px] md:text-[11px] font-extrabold line-clamp-2 leading-tight text-zinc-300 group-hover:text-rose-400 transition-colors">
                               {drama.title}
                             </span>
                           </div>
@@ -249,7 +268,7 @@ export function Header() {
                     </div>
                   ))
                 ) : searched ? (
-                  <div className="text-center text-zinc-500 text-sm py-16">
+                  <div className="text-center text-zinc-500 text-xs py-16">
                     Tidak ditemukan drama yang cocok di seluruh provider.
                   </div>
                 ) : (
