@@ -65,6 +65,14 @@ function parseVttOrSrt(text: string): SubtitleCue[] {
   return cues;
 }
 
+// Format seconds into MM:SS format
+const formatTime = (seconds: number) => {
+  if (isNaN(seconds) || seconds < 0) return "00:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+};
+
 export default function WatchPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -72,7 +80,7 @@ export default function WatchPage() {
   const dramaId = params.id as string;
   const provider = searchParams.get("provider") || "reelshort";
 
-  // State
+  // Core States
   const [detail, setDetail] = useState<{ title?: string; synopsis?: string } | null>(null);
   const [episodes, setEpisodes] = useState<EpisodeItem[]>([]);
   const [currentEpisodeIdx, setCurrentEpisodeIdx] = useState(0);
@@ -86,6 +94,10 @@ export default function WatchPage() {
   const [bookmarked, setBookmarked] = useState(false);
   const [showNotification, setShowNotification] = useState<string | null>(null);
   const [pageLoading, setPageLoading] = useState(true);
+
+  // Time & Progress states for seek bar
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   // References
   const containerRef = useRef<HTMLDivElement>(null);
@@ -104,6 +116,17 @@ export default function WatchPage() {
   // Sync index ref
   useEffect(() => {
     currentEpisodeIdxRef.current = currentEpisodeIdx;
+  }, [currentEpisodeIdx]);
+
+  // Reset progress variables when active episode changes
+  useEffect(() => {
+    setCurrentTime(0);
+    setDuration(0);
+    const activeVideo = videoRefs.current[currentEpisodeIdx];
+    if (activeVideo) {
+      setDuration(activeVideo.duration || 0);
+      setCurrentTime(activeVideo.currentTime || 0);
+    }
   }, [currentEpisodeIdx]);
 
   // Helper to pause ALL videos except the target index to prevent overlapping audio
@@ -231,20 +254,39 @@ export default function WatchPage() {
     return fallbackUrl;
   };
 
-  // Synchronize Active Subtitle Text on Video Time Update
-  const handleTimeUpdate = (idx: number, currentTime: number) => {
+  // Synchronize Active Subtitle Text and Current Time state on Video Time Update
+  const handleTimeUpdate = (idx: number, videoEl: HTMLVideoElement) => {
     if (idx !== currentEpisodeIdxRef.current) return;
+    
+    const time = videoEl.currentTime;
+    setCurrentTime(time);
+    
+    if (videoEl.duration) {
+      setDuration(videoEl.duration);
+    }
+
     const cues = parsedCues[idx];
     if (!cues || cues.length === 0) {
       setActiveSubtitleText("");
       return;
     }
 
-    const matchingCue = cues.find((c) => currentTime >= c.start && currentTime <= c.end);
+    const matchingCue = cues.find((c) => time >= c.start && time <= c.end);
     if (matchingCue) {
       setActiveSubtitleText(matchingCue.text);
     } else {
       setActiveSubtitleText("");
+    }
+  };
+
+  // Handle Seek Drag/Click from Timeline Progress Bar
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = parseFloat(e.target.value);
+    setCurrentTime(newTime);
+    
+    const activeVideo = videoRefs.current[currentEpisodeIdx];
+    if (activeVideo) {
+      activeVideo.currentTime = newTime;
     }
   };
 
@@ -448,8 +490,10 @@ export default function WatchPage() {
                 preload="metadata"
                 onClick={() => togglePlay(idx)}
                 onTimeUpdate={(e) => {
-                  const target = e.target as HTMLVideoElement;
-                  handleTimeUpdate(idx, target.currentTime);
+                  handleTimeUpdate(idx, e.target as HTMLVideoElement);
+                }}
+                onLoadedMetadata={(e) => {
+                  if (isCurrent) setDuration((e.target as HTMLVideoElement).duration || 0);
                 }}
                 onWaiting={() => {
                   if (isCurrent) setIsBuffering((prev) => ({ ...prev, [idx]: true }));
@@ -457,6 +501,10 @@ export default function WatchPage() {
                 onPlaying={() => {
                   setIsBuffering((prev) => ({ ...prev, [idx]: false }));
                   setIsPlaying((prev) => ({ ...prev, [idx]: true }));
+                  if (isCurrent) {
+                    const videoEl = videoRefs.current[idx];
+                    if (videoEl) setDuration(videoEl.duration || 0);
+                  }
                 }}
                 onPause={() => setIsPlaying((prev) => ({ ...prev, [idx]: false }))}
                 onError={() => {
@@ -488,9 +536,9 @@ export default function WatchPage() {
                 </div>
               )}
 
-              {/* Subtitle Overlay - Positioned safely at bottom-48 */}
+              {/* Subtitle Overlay - Positioned safely at bottom-180 */}
               {isCurrent && activeSubtitleText && (
-                <div className="absolute bottom-48 left-4 right-16 z-30 flex justify-center pointer-events-none">
+                <div className="absolute bottom-[180px] left-4 right-16 z-30 flex justify-center pointer-events-none">
                   <div className="bg-black/90 backdrop-blur-md text-yellow-300 font-extrabold text-sm md:text-base px-4 py-2 rounded-2xl text-center shadow-2xl border border-yellow-500/40 max-w-xs leading-snug tracking-wide animate-fade-in">
                     {activeSubtitleText}
                   </div>
@@ -498,7 +546,7 @@ export default function WatchPage() {
               )}
 
               {/* Right Sidebar Actions */}
-              <div className="absolute right-4 bottom-28 z-30 flex flex-col gap-6 items-center">
+              <div className="absolute right-4 bottom-32 z-30 flex flex-col gap-6 items-center">
                 {/* Like */}
                 <button
                   onClick={() => {
@@ -560,9 +608,9 @@ export default function WatchPage() {
                 </button>
               </div>
 
-              {/* Bottom Video Metadata */}
-              <div className="absolute left-4 bottom-24 right-20 z-30 flex flex-col gap-1.5">
-                <h4 className="text-base md:text-lg font-black leading-tight drop-shadow line-clamp-1">
+              {/* Bottom Video Metadata - Positioned safely above timeline at bottom-[108px] */}
+              <div className="absolute left-4 bottom-[108px] right-20 z-30 flex flex-col gap-1.5">
+                <h4 className="text-base md:text-lg font-black leading-tight drop-shadow line-clamp-1 text-zinc-100">
                   {detail?.title || "Tuduhan Palsu Pengasuh"}
                 </h4>
                 <p className="text-xs text-zinc-300 font-medium flex items-center gap-2">
@@ -576,13 +624,44 @@ export default function WatchPage() {
         })}
       </div>
 
-      {/* Episode Selector Drawer Trigger */}
-      <div className="absolute bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-black via-black/80 to-transparent pt-8 pb-4 px-4 flex justify-center">
+      {/* Interactive Progress Bar & Seek Bar - Positioned at bottom-[72px] */}
+      <div className="absolute bottom-[72px] left-4 right-4 z-40 flex flex-col gap-1.5 pointer-events-auto bg-black/40 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/5 shadow-xl">
+        <div className="flex items-center justify-between text-[10px] text-zinc-400 font-black px-0.5">
+          <span className="text-rose-400">{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+        <div className="relative w-full h-1 bg-zinc-800 rounded-full group cursor-pointer">
+          <input
+            type="range"
+            min={0}
+            max={duration || 100}
+            value={currentTime}
+            onChange={handleSeek}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+          />
+          {/* Custom Track representation */}
+          <div 
+            className="absolute left-0 top-0 bottom-0 bg-rose-500 rounded-full z-10"
+            style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+          />
+          {/* Thumb circle (always visible for mobile control, slightly larger on hover) */}
+          <div 
+            className="absolute h-3 w-3 rounded-full bg-white border-2 border-rose-500 -top-1 shadow shadow-rose-500/50 z-10 transition-transform group-hover:scale-125"
+            style={{ 
+              left: `${duration ? (currentTime / duration) * 100 : 0}%`,
+              transform: 'translateX(-50%)'
+            }}
+          />
+        </div>
+      </div>
+
+      {/* Episode Selector Drawer Trigger - Positioned at bottom-4 */}
+      <div className="absolute bottom-4 left-0 right-0 z-40 flex justify-center pointer-events-none">
         <Drawer>
           <DrawerTrigger asChild>
             <Button
               variant="ghost"
-              className="text-xs font-bold gap-1.5 text-white bg-rose-500/90 hover:bg-rose-600 backdrop-blur px-5 py-2 rounded-full border border-rose-400/40 shadow-xl shadow-rose-500/20"
+              className="pointer-events-auto text-xs font-bold gap-1.5 text-white bg-rose-500/90 hover:bg-rose-600 backdrop-blur px-5 py-2 rounded-full border border-rose-400/40 shadow-xl shadow-rose-500/20"
             >
               Pilih Episode ({episodes.length} Gratis)
             </Button>
