@@ -42,7 +42,10 @@ export default function HomePage() {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [dramasByProvider, setDramasByProvider] = useState<Record<string, DramaItem[]>>({});
   const [loading, setLoading] = useState(true);
-  const [heroDrama, setHeroDrama] = useState<{ drama: DramaItem; provider: string } | null>(null);
+
+  // Slider States for Hero banner
+  const [heroDramas, setHeroDramas] = useState<Array<{ drama: DramaItem; providerSlug: string }>>([]);
+  const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   
   // Selected Provider Tab State
   const [selectedProviderSlug, setSelectedProviderSlug] = useState<string>("");
@@ -110,11 +113,16 @@ export default function HomePage() {
 
         setDramasByProvider(dramaMap);
 
-        // Set top hero drama from first provider
-        const firstSlug = activeProviders[0]?.slug;
-        if (firstSlug && dramaMap[firstSlug]?.length > 0) {
-          setHeroDrama({ drama: dramaMap[firstSlug][0], provider: firstSlug });
+        // Gather Hero #1 trending drama from each active provider
+        const heroesList: Array<{ drama: DramaItem; providerSlug: string }> = [];
+        for (const p of activeProviders) {
+          const list = dramaMap[p.slug] || [];
+          if (list.length > 0) {
+            heroesList.push({ drama: list[0], providerSlug: p.slug });
+          }
         }
+        setHeroDramas(heroesList);
+
       } catch (err) {
         console.error("Error loading home data:", err);
       } finally {
@@ -124,6 +132,15 @@ export default function HomePage() {
 
     loadInitialData();
   }, []);
+
+  // Auto-slide effect for hero banner (cycles every 5 seconds)
+  useEffect(() => {
+    if (heroDramas.length <= 1) return;
+    const interval = setInterval(() => {
+      setCurrentHeroIndex((prev) => (prev + 1) % heroDramas.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [heroDramas]);
 
   // Monitor URL search parameter "q" and execute parallel searches
   useEffect(() => {
@@ -186,6 +203,8 @@ export default function HomePage() {
 
   const selectedProviderObject = providers.find((p) => p.slug === selectedProviderSlug);
   const selectedProviderDramas = dramasByProvider[selectedProviderSlug] || [];
+  // Slice to exactly 12 trending dramas
+  const displayedDramas = selectedProviderDramas.slice(0, 12);
 
   // If Search Parameter "q" is active, render search results directly in the main page feed
   if (queryParam) {
@@ -268,42 +287,59 @@ export default function HomePage() {
     );
   }
 
-  // Render Default Main Home Feed (Cleaned categories header)
+  // Render Default Main Home Feed (With Auto-Play Hero Slider and Horizontal side-scroll layout)
   return (
     <div className="flex flex-col gap-8 pb-16">
-      {/* Hero Banner Section */}
-      <section className="relative h-60 sm:h-72 md:h-80 lg:h-96 w-full rounded-3xl bg-gradient-to-br from-zinc-900 via-rose-950 to-zinc-900 overflow-hidden shadow-2xl border border-border group">
-        <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-transparent z-10" />
-        <div
-          className="absolute right-0 top-0 bottom-0 w-full md:w-2/3 bg-cover bg-center mix-blend-luminosity opacity-40 group-hover:scale-105 transition-transform duration-700"
-          style={{
-            backgroundImage: `url(${heroDrama?.drama.poster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1200'})`,
-          }}
-        />
-        <div className="relative z-20 flex flex-col justify-end h-full p-6 md:p-10 gap-3 max-w-2xl">
-          <span className="text-xs font-bold tracking-wider uppercase text-rose-400 bg-rose-500/20 border border-rose-500/30 px-3 py-1 rounded-full w-max flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Terpopuler Hari Ini
-          </span>
-          <h2 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-white line-clamp-2">
-            {heroDrama?.drama.title || "CEO Jatuh Cinta Pada Gadis Desa"}
-          </h2>
-          <p className="text-xs md:text-sm text-zinc-300 line-clamp-2 max-w-xl leading-relaxed">
-            Streaming gratis ribuan episode drama populer dari berbagai provider tanpa registrasi!
-          </p>
-          {heroDrama && (
+      
+      {/* 1. Slider Hero Banner Section (Green Box) */}
+      {heroDramas.length > 0 && (
+        <section className="relative h-60 sm:h-72 md:h-80 lg:h-96 w-full rounded-3xl bg-gradient-to-br from-zinc-900 via-rose-950 to-zinc-900 overflow-hidden shadow-2xl border border-border group">
+          <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-transparent z-10" />
+          <div
+            key={currentHeroIndex} // Key triggers browser to re-animate fade-in
+            className="absolute right-0 top-0 bottom-0 w-full md:w-2/3 bg-cover bg-center mix-blend-luminosity opacity-40 group-hover:scale-105 transition-all duration-1000 animate-fade-in"
+            style={{
+              backgroundImage: `url(${heroDramas[currentHeroIndex].drama.cover || heroDramas[currentHeroIndex].drama.poster || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1200'})`,
+            }}
+          />
+          <div className="relative z-20 flex flex-col justify-end h-full p-6 md:p-10 gap-3 max-w-2xl">
+            <span className="text-xs font-bold tracking-wider uppercase text-rose-400 bg-rose-500/20 border border-rose-500/30 px-3 py-1 rounded-full w-max flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 animate-pulse" /> Terpopuler Hari Ini
+            </span>
+            <h2 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight leading-tight text-white line-clamp-2">
+              {heroDramas[currentHeroIndex].drama.title}
+            </h2>
+            <p className="text-xs md:text-sm text-zinc-300 line-clamp-2 max-w-xl leading-relaxed">
+              Streaming gratis ribuan episode drama populer dari berbagai provider tanpa registrasi!
+            </p>
             <Link
-              href={`/watch/${heroDrama.drama.id}?provider=${heroDrama.provider}`}
+              href={`/watch/${heroDramas[currentHeroIndex].drama.id}?provider=${heroDramas[currentHeroIndex].providerSlug}`}
               className="w-max mt-2"
             >
               <Button size="lg" className="bg-rose-500 hover:bg-rose-600 text-white font-bold gap-2 shadow-xl shadow-rose-500/30 border-0 rounded-xl px-6">
                 <Play className="h-4 w-4 fill-current" /> Nonton Sekarang
               </Button>
             </Link>
-          )}
-        </div>
-      </section>
+          </div>
 
-      {/* Interactive Clickable Provider Selector Tab Grid */}
+          {/* Dots Indicator for Carousel Navigation */}
+          {heroDramas.length > 1 && (
+            <div className="absolute bottom-4 right-6 z-30 flex gap-2">
+              {heroDramas.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrentHeroIndex(i)}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    currentHeroIndex === i ? "w-6 bg-rose-500" : "w-2 bg-zinc-600 hover:bg-zinc-400"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* 2. Interactive Clickable Provider Selector Tab Grid */}
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h3 className="font-bold tracking-tight text-base md:text-lg flex items-center gap-2">
@@ -352,9 +388,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Selected Provider's Full Grid Feed (Glow-Tab Content) */}
+      {/* 3. Selected Provider's 12 Trending Dramas (Red Box - Side Scrolling Row) */}
       {selectedProviderSlug && selectedProviderObject && (
-        <section className="flex flex-col gap-4 animate-fade-in">
+        <section className="flex flex-col gap-4 animate-fade-in overflow-hidden">
           <div className="flex items-center justify-between pb-2 border-b border-zinc-900/60">
             <h3 className="font-black tracking-tight text-base md:text-lg flex items-center gap-2 text-zinc-100">
               <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
@@ -362,13 +398,19 @@ export default function HomePage() {
             </h3>
           </div>
 
-          {selectedProviderDramas.length > 0 ? (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
-              {selectedProviderDramas.map((drama) => (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-zinc-500">
+              <Loader2 className="h-6 w-6 animate-spin text-rose-500" />
+              <span className="text-xs italic">Memuat konten dari {selectedProviderObject.name}...</span>
+            </div>
+          ) : displayedDramas.length > 0 ? (
+            /* Horizontal scrolling container (Always in 1 row, overflows to the side) */
+            <div className="flex overflow-x-auto scrollbar-none gap-3 md:gap-4 pb-4 -mx-4 px-4 md:mx-0 md:px-0">
+              {displayedDramas.map((drama) => (
                 <Link
                   key={drama.id}
                   href={`/watch/${drama.id}?provider=${selectedProviderSlug}`}
-                  className="flex flex-col gap-2 group cursor-pointer"
+                  className="w-[110px] sm:w-[130px] md:w-[145px] flex-none flex flex-col gap-2 group cursor-pointer"
                 >
                   <div className="relative aspect-[9/16] w-full rounded-2xl bg-zinc-900 border border-border shadow-md overflow-hidden group-hover:border-rose-500/50 transition-all duration-300">
                     <img
@@ -380,17 +422,17 @@ export default function HomePage() {
                       }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-85 group-hover:opacity-75 transition-opacity" />
-                    <span className="absolute top-2 left-2 z-10 bg-black/80 backdrop-blur-md text-[10px] font-bold text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/10">
+                    <span className="absolute top-2 left-2 z-10 bg-black/80 backdrop-blur-md text-[9px] font-bold text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/10">
                       ★ {drama.rating}
                     </span>
-                    <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between text-[11px] font-bold text-zinc-300">
+                    <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between text-[10px] font-bold text-zinc-300">
                       <span>{drama.episodes} Ep</span>
-                      <span className="bg-rose-500/90 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:scale-110 shadow-lg shadow-rose-500/20">
-                        <Play className="h-3 w-3 fill-current" />
+                      <span className="bg-rose-500/90 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:scale-110 shadow-lg shadow-rose-500/20">
+                        <Play className="h-2.5 w-2.5 fill-current" />
                       </span>
                     </div>
                   </div>
-                  <span className="text-xs md:text-sm font-bold line-clamp-2 px-1 text-zinc-300 group-hover:text-rose-400 transition-colors leading-tight">
+                  <span className="text-xs font-bold line-clamp-2 px-1 text-zinc-300 group-hover:text-rose-400 transition-colors leading-tight">
                     {drama.title}
                   </span>
                 </Link>
@@ -398,8 +440,7 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 gap-2 text-zinc-500">
-              <Loader2 className="h-6 w-6 animate-spin text-rose-500" />
-              <span className="text-xs italic">Memuat konten dari {selectedProviderObject.name}...</span>
+              <span className="text-xs italic">Belum ada konten dari {selectedProviderObject.name}.</span>
             </div>
           )}
         </section>
