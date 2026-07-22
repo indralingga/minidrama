@@ -44,6 +44,9 @@ export default function HomePage() {
   const [dramasByProvider, setDramasByProvider] = useState<Record<string, DramaItem[]>>({});
   const [loading, setLoading] = useState(true);
   const [heroDrama, setHeroDrama] = useState<{ drama: DramaItem; provider: string } | null>(null);
+  
+  // Selected Provider Tab State
+  const [selectedProviderSlug, setSelectedProviderSlug] = useState<string>("");
 
   // Search States
   const [searchLoading, setSearchLoading] = useState(false);
@@ -82,6 +85,11 @@ export default function HomePage() {
         }
 
         setProviders(activeProviders);
+        
+        // Default select first provider
+        if (activeProviders.length > 0) {
+          setSelectedProviderSlug(activeProviders[0].slug);
+        }
 
         // Fetch trending rank for each provider
         const dramaMap: Record<string, DramaItem[]> = {};
@@ -123,6 +131,20 @@ export default function HomePage() {
     loadInitialData();
   }, []);
 
+  const filteredProviders = providers.filter(
+    (p) => activeCategory === "ALL" || p.category === activeCategory
+  );
+
+  // Sync selected provider with category filter changes
+  useEffect(() => {
+    if (filteredProviders.length > 0) {
+      const exists = filteredProviders.some((p) => p.slug === selectedProviderSlug);
+      if (!exists) {
+        setSelectedProviderSlug(filteredProviders[0].slug);
+      }
+    }
+  }, [activeCategory, providers]);
+
   // Monitor URL search parameter "q" and execute parallel searches
   useEffect(() => {
     if (!queryParam.trim()) {
@@ -136,7 +158,6 @@ export default function HomePage() {
       setSearched(true);
       const newGroupedResults: Record<string, SearchResult[]> = {};
 
-      // Determine search targets
       const searchTargets = providers.length > 0 ? providers : [
         { id: "1", name: "ReelShort", slug: "reelshort", isActive: true },
         { id: "2", name: "NetShort", slug: "netshort", isActive: true },
@@ -178,14 +199,13 @@ export default function HomePage() {
     executeGlobalSearch();
   }, [queryParam, providers]);
 
-  const filteredProviders = providers.filter(
-    (p) => activeCategory === "ALL" || p.category === activeCategory
-  );
-
   const totalSearchMatches = Object.values(groupedResults).reduce(
     (acc, curr) => acc + curr.length,
     0
   );
+
+  const selectedProviderObject = providers.find((p) => p.slug === selectedProviderSlug);
+  const selectedProviderDramas = dramasByProvider[selectedProviderSlug] || [];
 
   // If Search Parameter "q" is active, render search results directly in the main page feed
   if (queryParam) {
@@ -223,7 +243,6 @@ export default function HomePage() {
                   <span className="h-2 w-2 rounded-full bg-rose-500" />
                   {providerName} ({list.length} Cocok)
                 </h4>
-                {/* 3 columns on mobile, 4 columns on tablets, 6 columns on desktop */}
                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
                   {list.map((drama) => (
                     <Link
@@ -271,7 +290,7 @@ export default function HomePage() {
 
   // Render Default Main Home Feed
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 pb-16">
       {/* Category Pills Header */}
       <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 -mx-4 px-4 sticky top-16 bg-background/95 backdrop-blur z-20">
         {categories.map((cat) => (
@@ -321,100 +340,107 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Provider List Grid */}
+      {/* Interactive Clickable Provider Selector Tab Grid */}
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold tracking-tight text-lg md:text-xl flex items-center gap-2">
+          <h3 className="font-bold tracking-tight text-base md:text-lg flex items-center gap-2">
             <Film className="h-5 w-5 text-rose-500" /> Pilih Provider
           </h3>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-4">
           {loading
-            ? Array.from({ length: 6 }).map((_, i) => (
+            ? Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="h-16 rounded-2xl border border-border bg-card animate-pulse" />
               ))
-            : filteredProviders.map((provider) => (
-                <div
-                  key={provider.id}
-                  className="flex items-center gap-3 p-3 md:p-4 rounded-2xl border border-border bg-card hover:bg-accent/60 cursor-pointer transition-all duration-200 hover:border-rose-500/50 group"
-                >
-                  {provider.iconUrl ? (
-                    <img
-                      src={provider.iconUrl}
-                      alt={provider.name}
-                      className="h-10 w-10 md:h-12 md:w-12 rounded-xl object-cover group-hover:scale-105 transition-transform flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center font-bold text-lg text-white flex-shrink-0">
-                      {provider.name[0]}
+            : filteredProviders.map((provider) => {
+                const isSelected = selectedProviderSlug === provider.slug;
+                return (
+                  <div
+                    key={provider.id}
+                    onClick={() => setSelectedProviderSlug(provider.slug)}
+                    className={`flex items-center gap-3 p-3 md:p-4 rounded-2xl border cursor-pointer transition-all duration-200 scale-100 active:scale-95 group ${
+                      isSelected
+                        ? "bg-rose-500/10 border-rose-500 shadow-lg shadow-rose-500/5 ring-1 ring-rose-500/30"
+                        : "border-border bg-card hover:border-zinc-700/60"
+                    }`}
+                  >
+                    {provider.iconUrl ? (
+                      <img
+                        src={provider.iconUrl}
+                        alt={provider.name}
+                        className="h-10 w-10 rounded-xl object-cover transition-transform flex-shrink-0 border border-zinc-800/40"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center font-bold text-base text-white flex-shrink-0">
+                        {provider.name[0]}
+                      </div>
+                    )}
+                    <div className="flex flex-col overflow-hidden">
+                      <span className={`text-xs md:text-sm font-bold truncate transition-colors ${
+                        isSelected ? "text-rose-400" : "group-hover:text-rose-400"
+                      }`}>
+                        {provider.name}
+                      </span>
+                      <span className="text-[9px] text-emerald-400 font-bold tracking-wide uppercase">Live Stream</span>
                     </div>
-                  )}
-                  <div className="flex flex-col overflow-hidden">
-                    <span className="text-sm font-bold truncate group-hover:text-rose-400 transition-colors">
-                      {provider.name}
-                    </span>
-                    <span className="text-[10px] text-emerald-400 font-semibold">Live Stream</span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
         </div>
       </section>
 
-      {/* Dynamic Carousels */}
-      {filteredProviders.map((provider) => {
-        const list = dramasByProvider[provider.slug] || [];
+      {/* Selected Provider's Full Grid Feed (Glow-Tab Content) */}
+      {selectedProviderSlug && selectedProviderObject && (
+        <section className="flex flex-col gap-4 animate-fade-in">
+          <div className="flex items-center justify-between pb-2 border-b border-zinc-900/60">
+            <h3 className="font-black tracking-tight text-base md:text-lg flex items-center gap-2 text-zinc-100">
+              <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+              {selectedProviderObject.name} Trending
+            </h3>
+          </div>
 
-        return (
-          <section key={provider.id} className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold tracking-tight text-lg md:text-xl flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-                {provider.name} Trending
-              </h3>
-            </div>
-
-            {list.length > 0 ? (
-              <div className="flex gap-4 md:gap-6 overflow-x-auto scrollbar-none pb-4 -mx-4 px-4 md:mx-0 md:px-0">
-                {list.map((drama) => (
-                  <Link
-                    key={drama.id}
-                    href={`/watch/${drama.id}?provider=${provider.slug}`}
-                    className="flex-none w-32 sm:w-40 md:w-48 flex flex-col gap-2.5 group cursor-pointer"
-                  >
-                    <div className="relative aspect-[9/16] w-full rounded-2xl bg-zinc-900 border border-border shadow-md overflow-hidden group-hover:border-rose-500/50 transition-all duration-300">
-                      <img
-                        src={drama.poster}
-                        alt={drama.title}
-                        className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=600&fit=crop";
-                        }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-80 group-hover:opacity-60 transition-opacity" />
-                      <span className="absolute top-2 left-2 z-10 bg-black/70 backdrop-blur-md text-[11px] font-bold text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/20">
-                        ★ {drama.rating}
-                      </span>
-                      <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between text-xs font-bold text-zinc-300">
-                        <span>{drama.episodes} Ep</span>
-                        <span className="bg-rose-500/80 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:scale-110">
-                          <Play className="h-3 w-3 fill-current" />
-                        </span>
-                      </div>
-                    </div>
-                    <span className="text-xs md:text-sm font-bold line-clamp-2 px-1 text-zinc-200 group-hover:text-rose-400 transition-colors leading-tight">
-                      {drama.title}
+          {selectedProviderDramas.length > 0 ? (
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 md:gap-4">
+              {selectedProviderDramas.map((drama) => (
+                <Link
+                  key={drama.id}
+                  href={`/watch/${drama.id}?provider=${selectedProviderSlug}`}
+                  className="flex flex-col gap-2 group cursor-pointer"
+                >
+                  <div className="relative aspect-[9/16] w-full rounded-2xl bg-zinc-900 border border-border shadow-md overflow-hidden group-hover:border-rose-500/50 transition-all duration-300">
+                    <img
+                      src={drama.poster}
+                      alt={drama.title}
+                      className="absolute inset-0 h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=600&fit=crop";
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-85 group-hover:opacity-75 transition-opacity" />
+                    <span className="absolute top-2 left-2 z-10 bg-black/80 backdrop-blur-md text-[10px] font-bold text-yellow-400 px-2 py-0.5 rounded-md border border-yellow-500/10">
+                      ★ {drama.rating}
                     </span>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs text-zinc-500 italic py-2">
-                Memuat data dari {provider.name}...
-              </div>
-            )}
-          </section>
-        );
-      })}
+                    <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between text-[11px] font-bold text-zinc-300">
+                      <span>{drama.episodes} Ep</span>
+                      <span className="bg-rose-500/90 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:scale-110 shadow-lg shadow-rose-500/20">
+                        <Play className="h-3 w-3 fill-current" />
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-xs md:text-sm font-bold line-clamp-2 px-1 text-zinc-300 group-hover:text-rose-400 transition-colors leading-tight">
+                    {drama.title}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 gap-2 text-zinc-500">
+              <Loader2 className="h-6 w-6 animate-spin text-rose-500" />
+              <span className="text-xs italic">Memuat konten dari {selectedProviderObject.name}...</span>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
