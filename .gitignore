@@ -26,7 +26,14 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
+.env
 .env*.local
+
+# agent configs
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
 
 # vercel
 .vercel
@@ -34,3 +41,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
