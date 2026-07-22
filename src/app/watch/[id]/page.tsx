@@ -205,8 +205,19 @@ export default function WatchPage() {
         }
 
         if (json?.status && streamUrl) {
-          setStreamUrls((prev) => ({ ...prev, [idx]: streamUrl }));
-          return streamUrl;
+          // Extract specific referer/origin headers returned by CutAd to bypass CDN HTTP 403 blocks
+          const headers = json.data.headers || json.data.streams?.[0]?.headers || {};
+          const referer = headers.Referer || headers.referer || "";
+          const origin = headers.Origin || headers.origin || "";
+
+          let finalStreamUrl = streamUrl;
+          if (referer || origin) {
+            // Route through our local serverless video proxy to safely inject headers
+            finalStreamUrl = `/api/video-proxy?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent(referer)}&origin=${encodeURIComponent(origin)}`;
+          }
+
+          setStreamUrls((prev) => ({ ...prev, [idx]: finalStreamUrl }));
+          return finalStreamUrl;
         }
       }
     } catch (err) {
@@ -239,7 +250,6 @@ export default function WatchPage() {
 
   // Play Video with HLS support & pause all others
   const playVideo = async (idx: number) => {
-    // Abort if this idx is not the current active index anymore (User has scrolled away)
     if (idx !== currentEpisodeIdxRef.current) return;
 
     const ep = episodes[idx];
@@ -251,13 +261,11 @@ export default function WatchPage() {
     const url = await fetchStreamData(idx, ep.videoFakeId);
     if (!url) return;
 
-    // Check again after async fetch if this is still the active index
     if (idx !== currentEpisodeIdxRef.current) {
       videoEl.pause();
       return;
     }
 
-    // Double-check to pause all others right before playing
     pauseAllExcept(idx);
 
     if (url.includes(".m3u8") && Hls.isSupported()) {
@@ -300,7 +308,6 @@ export default function WatchPage() {
         if (entry.isIntersecting) {
           setCurrentEpisodeIdx(index);
           
-          // Only trigger automatic playback if not mid programmatic smooth scrolling
           if (!isProgrammaticScrolling.current) {
             pauseAllExcept(index);
             playVideo(index);
@@ -352,8 +359,8 @@ export default function WatchPage() {
 
   // Select Episode from Drawer
   const selectEpisode = (index: number) => {
-    isProgrammaticScrolling.current = true; // Lock playback triggers during scroll transition
-    pauseAllExcept(index); // Stop all previous videos immediately!
+    isProgrammaticScrolling.current = true;
+    pauseAllExcept(index);
     setCurrentEpisodeIdx(index);
 
     const container = containerRef.current;
@@ -364,7 +371,6 @@ export default function WatchPage() {
       });
     }
 
-    // Wait for programmatic smooth scrolling to finish completely
     setTimeout(() => {
       isProgrammaticScrolling.current = false;
       playVideo(index);
@@ -573,13 +579,13 @@ export default function WatchPage() {
       {/* Episode Selector Drawer Trigger */}
       <div className="absolute bottom-0 left-0 right-0 z-40 bg-gradient-to-t from-black via-black/80 to-transparent pt-8 pb-4 px-4 flex justify-center">
         <Drawer>
-          <DrawerTrigger render={
+          <DrawerTrigger asChild>
             <Button
               variant="ghost"
               className="text-xs font-bold gap-1.5 text-white bg-rose-500/90 hover:bg-rose-600 backdrop-blur px-5 py-2 rounded-full border border-rose-400/40 shadow-xl shadow-rose-500/20"
-            />
-          }>
-            Pilih Episode ({episodes.length} Gratis)
+            >
+              Pilih Episode ({episodes.length} Gratis)
+            </Button>
           </DrawerTrigger>
           <DrawerContent className="bg-zinc-950 border-zinc-900 text-white max-w-lg mx-auto">
             <DrawerHeader>
