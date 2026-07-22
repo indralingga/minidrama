@@ -42,7 +42,7 @@ async function main() {
       name: "ShortMax",
       slug: "shortmax",
       category: Category.SHORT,
-      iconUrl: "https://images.unsplash.com/photo-1618005198143-d3782b5752f6?w=128&h=128&fit=crop",
+      iconUrl: "https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?w=128&h=128&fit=crop",
       apiBaseUrl: "https://www.cutad.web.id/api/public/shortmax",
       isActive: true,
       sortOrder: 4,
