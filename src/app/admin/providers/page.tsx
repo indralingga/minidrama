@@ -165,10 +165,10 @@ export default function AdminProvidersPage() {
         </div>
         
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={startCreate} size="sm" className="bg-rose-600 hover:bg-rose-700 text-white gap-1 font-semibold">
-              <Plus className="h-4 w-4" /> Tambah
-            </Button>
+          <DialogTrigger render={
+            <Button onClick={startCreate} size="sm" className="bg-rose-600 hover:bg-rose-700 text-white gap-1 font-semibold" />
+          }>
+            <Plus className="h-4 w-4" /> Tambah
           </DialogTrigger>
           <DialogContent className="bg-zinc-900 border-zinc-800 text-white max-w-xs sm:max-w-sm rounded-xl">
             <DialogHeader>
