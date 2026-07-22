@@ -53,10 +53,10 @@ export default function AdminProvidersPage() {
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
   const [initLoading, setInitLoading] = useState(false);
 
-  // Form states
+  // Form states (category is locked to "SHORT" for focused mini drama experience)
   const [formName, setFormName] = useState("");
   const [formSlug, setFormSlug] = useState("");
-  const [formCategory, setFormCategory] = useState<"SHORT" | "DRAMA" | "FILM" | "ANIME">("SHORT");
+  const formCategory = "SHORT";
   const [formIconUrl, setFormIconUrl] = useState("");
   const [formApiBaseUrl, setFormApiBaseUrl] = useState("");
   const [formSortOrder, setFormSortOrder] = useState(0);
@@ -77,6 +77,8 @@ export default function AdminProvidersPage() {
       const res = await fetch("/api/providers");
       if (res.ok) {
         const data = await res.json();
+        // Sort by sortOrder
+        data.sort((a: Provider, b: Provider) => a.sortOrder - b.sortOrder);
         setProviders(data);
       }
     } catch (err) {
@@ -86,7 +88,7 @@ export default function AdminProvidersPage() {
     }
   };
 
-  // Initialize Default Providers directly from UI (Foolproof fallback)
+  // Initialize Default Providers directly from UI as SHORT categories
   const initializeDefaults = async () => {
     setInitLoading(true);
     const defaults = [
@@ -109,7 +111,7 @@ export default function AdminProvidersPage() {
       {
         name: "DramaBox",
         slug: "dramabox",
-        category: "DRAMA",
+        category: "SHORT",
         iconUrl: "https://images.unsplash.com/photo-1620121692029-d088224ddc74?w=128&h=128&fit=crop",
         apiBaseUrl: "https://www.cutad.web.id/api/public/dramabox",
         sortOrder: 3,
@@ -203,7 +205,6 @@ export default function AdminProvidersPage() {
     setEditingProvider(provider);
     setFormName(provider.name);
     setFormSlug(provider.slug);
-    setFormCategory(provider.category);
     setFormIconUrl(provider.iconUrl || "");
     setFormApiBaseUrl(provider.apiBaseUrl);
     setFormSortOrder(provider.sortOrder);
@@ -215,7 +216,6 @@ export default function AdminProvidersPage() {
     setEditingProvider(null);
     setFormName("");
     setFormSlug("");
-    setFormCategory("SHORT");
     setFormIconUrl("");
     setFormApiBaseUrl("");
     setFormSortOrder(providers.length + 1);
@@ -370,20 +370,6 @@ export default function AdminProvidersPage() {
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-zinc-400">Kategori</label>
-                <select
-                  value={formCategory}
-                  onChange={e => setFormCategory(e.target.value as any)}
-                  className="bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-sm focus:outline-none focus:border-rose-500 text-white"
-                >
-                  <option value="SHORT">Short Drama</option>
-                  <option value="DRAMA">Drama</option>
-                  <option value="FILM">Film</option>
-                  <option value="ANIME">Anime</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-semibold text-zinc-400">URL Icon Image</label>
                 <input
                   type="text"
@@ -468,9 +454,6 @@ export default function AdminProvidersPage() {
                   <div className="flex flex-col overflow-hidden">
                     <div className="flex items-center gap-2">
                       <span className="font-extrabold text-base truncate">{provider.name}</span>
-                      <span className="text-[10px] bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-full font-bold border border-rose-500/20">
-                        {provider.category}
-                      </span>
                     </div>
                     <span className="text-[11px] text-zinc-500 truncate mt-0.5">{provider.apiBaseUrl}</span>
                   </div>

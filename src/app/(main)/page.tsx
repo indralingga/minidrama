@@ -39,7 +39,6 @@ export default function HomePage() {
   const queryParam = searchParams.get("q") || "";
 
   // Core Home States
-  const [activeCategory, setActiveCategory] = useState<string>("ALL");
   const [providers, setProviders] = useState<Provider[]>([]);
   const [dramasByProvider, setDramasByProvider] = useState<Record<string, DramaItem[]>>({});
   const [loading, setLoading] = useState(true);
@@ -52,13 +51,6 @@ export default function HomePage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [groupedResults, setGroupedResults] = useState<Record<string, SearchResult[]>>({});
   const [searched, setSearched] = useState(false);
-
-  const categories = [
-    { label: "Semua", value: "ALL" },
-    { label: "Short Drama", value: "SHORT" },
-    { label: "Film", value: "FILM" },
-    { label: "Anime", value: "ANIME" },
-  ];
 
   // Fetch providers list
   useEffect(() => {
@@ -79,11 +71,13 @@ export default function HomePage() {
           activeProviders = [
             { id: "1", name: "ReelShort", slug: "reelshort", category: "SHORT", isActive: true, sortOrder: 1, apiBaseUrl: "" },
             { id: "2", name: "NetShort", slug: "netshort", category: "SHORT", isActive: true, sortOrder: 2, apiBaseUrl: "" },
-            { id: "3", name: "DramaBox", slug: "dramabox", category: "DRAMA", isActive: true, sortOrder: 3, apiBaseUrl: "" },
+            { id: "3", name: "DramaBox", slug: "dramabox", category: "SHORT", isActive: true, sortOrder: 3, apiBaseUrl: "" },
             { id: "4", name: "ShortMax", slug: "shortmax", category: "SHORT", isActive: true, sortOrder: 4, apiBaseUrl: "" },
           ];
         }
 
+        // Ensure sorted by sortOrder
+        activeProviders.sort((a, b) => a.sortOrder - b.sortOrder);
         setProviders(activeProviders);
         
         // Default select first provider
@@ -130,20 +124,6 @@ export default function HomePage() {
 
     loadInitialData();
   }, []);
-
-  const filteredProviders = providers.filter(
-    (p) => activeCategory === "ALL" || p.category === activeCategory
-  );
-
-  // Sync selected provider with category filter changes
-  useEffect(() => {
-    if (filteredProviders.length > 0) {
-      const exists = filteredProviders.some((p) => p.slug === selectedProviderSlug);
-      if (!exists) {
-        setSelectedProviderSlug(filteredProviders[0].slug);
-      }
-    }
-  }, [activeCategory, providers]);
 
   // Monitor URL search parameter "q" and execute parallel searches
   useEffect(() => {
@@ -288,26 +268,9 @@ export default function HomePage() {
     );
   }
 
-  // Render Default Main Home Feed
+  // Render Default Main Home Feed (Cleaned categories header)
   return (
     <div className="flex flex-col gap-8 pb-16">
-      {/* Category Pills Header */}
-      <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1 -mx-4 px-4 sticky top-16 bg-background/95 backdrop-blur z-20">
-        {categories.map((cat) => (
-          <button
-            key={cat.value}
-            onClick={() => setActiveCategory(cat.value)}
-            className={`flex-none px-5 py-2 rounded-full text-xs md:text-sm font-semibold border transition-all duration-200 ${
-              activeCategory === cat.value
-                ? "bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-500/20"
-                : "border-border bg-card text-muted-foreground hover:text-foreground hover:bg-accent"
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-
       {/* Hero Banner Section */}
       <section className="relative h-60 sm:h-72 md:h-80 lg:h-96 w-full rounded-3xl bg-gradient-to-br from-zinc-900 via-rose-950 to-zinc-900 overflow-hidden shadow-2xl border border-border group">
         <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/60 to-transparent z-10" />
@@ -325,7 +288,7 @@ export default function HomePage() {
             {heroDrama?.drama.title || "CEO Jatuh Cinta Pada Gadis Desa"}
           </h2>
           <p className="text-xs md:text-sm text-zinc-300 line-clamp-2 max-w-xl leading-relaxed">
-            Streaming gratis ribuan episode drama dan film populer dari berbagai provider tanpa registrasi!
+            Streaming gratis ribuan episode drama populer dari berbagai provider tanpa registrasi!
           </p>
           {heroDrama && (
             <Link
@@ -352,7 +315,7 @@ export default function HomePage() {
             ? Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} className="h-16 rounded-2xl border border-border bg-card animate-pulse" />
               ))
-            : filteredProviders.map((provider) => {
+            : providers.map((provider) => {
                 const isSelected = selectedProviderSlug === provider.slug;
                 return (
                   <div
