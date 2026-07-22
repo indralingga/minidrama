@@ -78,6 +78,31 @@ export function Header() {
           })}
         </nav>
 
+        {/* Desktop Telegram Channel Button */}
+        <a
+          href="https://t.me/minidrama_channel"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden md:flex items-center gap-2 px-3.5 py-2 rounded-full bg-zinc-900 border border-zinc-800 hover:border-blue-500/40 text-zinc-300 hover:text-blue-400 text-xs font-bold transition-all duration-300 shadow-md group hover:bg-blue-500/5 mr-1 cursor-pointer"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="fill-current group-hover:animate-pulse"
+          >
+            <path d="m22 2-7 20-4-9-9-4Z" />
+            <path d="M22 2 11 13" />
+          </svg>
+          Telegram Channel
+        </a>
+
         {/* Integrated Search Input in Header */}
         <div className="flex items-center gap-2 flex-1 max-w-md justify-end">
           <form

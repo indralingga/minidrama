@@ -1,5 +1,6 @@
 import React from "react";
 import { Sparkles, Film, Bookmark, Heart, ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function ProfilePage() {
   return (
@@ -15,6 +16,29 @@ export default function ProfilePage() {
             MiniDrama dapat diakses gratis oleh siapa saja. Tanpa perlu mendaftar, tanpa kunci episode, dan tanpa koin!
           </p>
         </div>
+      </section>
+
+      {/* Telegram Channel Join Card */}
+      <section className="relative p-6 rounded-3xl bg-gradient-to-br from-blue-950 via-zinc-900 to-zinc-900 border border-blue-500/20 overflow-hidden shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col gap-2 relative z-10">
+          <span className="text-[10px] font-black tracking-wider uppercase text-blue-400 bg-blue-500/20 px-2.5 py-0.5 rounded-full w-max border border-blue-500/30 flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="fill-current"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg> TELEGRAM CHANNEL
+          </span>
+          <h2 className="text-xl font-black text-white">Ikuti Update Drama Terbaru</h2>
+          <p className="text-xs text-zinc-300 max-w-sm leading-relaxed">
+            Dapatkan notifikasi instan saat ada judul drama populer baru, pembaruan tautan, atau pengumuman server!
+          </p>
+        </div>
+        <a 
+          href="https://t.me/minidrama_channel"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="z-10 w-full md:w-auto"
+        >
+          <Button className="w-full md:w-auto bg-blue-500 hover:bg-blue-600 text-white font-bold gap-2 rounded-xl shadow-lg shadow-blue-500/20 border-0 px-6 py-5">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="fill-current"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg> Gabung Channel
+          </Button>
+        </a>
       </section>
 
       {/* App Highlights / Features */}
